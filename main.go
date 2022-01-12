@@ -16,17 +16,42 @@
 package main
 
 import (
-	"fmt"
-
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
-	"fyne.io/fyne/v2/widget"
+)
+
+const (
+	sig   = "com.markdoyle.libmanager"
+	title = "X-Plane Library Manager"
 )
 
 func main() {
-	a := app.New()
+	a := app.NewWithID(sig)
 	a.Settings().SetTheme(theme.DarkTheme())
-	w := a.NewWindow("Hello World")
+	w := a.NewWindow(title)
+
+	if a.Preferences().String("SimPath") == "" {
+		info := dialog.NewInformation("X-Plane path", "Please select your X-Plane 11 path when prompted", w)
+		info.SetOnClosed(func() {
+			dialog.ShowFolderOpen(func(lu fyne.ListableURI, e error) {
+				if lu == nil {
+					closeInfo := dialog.NewInformation("Missing X-Plane Path", "No Path was provided, closing", w)
+					closeInfo.SetOnClosed(func() {
+						w.Close()
+					})
+					closeInfo.Show()
+					return
+				}
+
+				a.Preferences().SetString("SimPath", lu.Path())
+				dialog.ShowInformation("X-Plane Path Set", "X-Plane Path set to \""+lu.Path()+"\".\n You can modify your path in settings", w)
+			}, w)
+		})
+		info.Show()
+	}
 
 	username, password := ReadUser("user.txt")
 
@@ -34,27 +59,21 @@ func main() {
 		// get user to login again
 	}
 
-	creds, err := Login(*username, *password)
+	// creds, err := Login(*username, *password)
 
-	if err != nil {
-		// get user to login again
-		panic("Login Failed")
-	}
+	// if err != nil {
+	// 	// get user to login again
+	// 	panic("Login Failed")
+	// }
 
-	fetcher := newLibraryFetcher()
-	go fetcher.GetMasterLibraries(creds)
+	// fetcher := newLibraryFetcher()
+	// fmt.Println(creds)
+	// go fetcher.GetMasterLibraries(creds)
 
-	for lib := range fetcher.progress {
-		fmt.Printf("%#v\n\n", lib)
-	}
+	tabs := CreateTabs(w)
+	tabs.SetTabLocation(container.TabLocationLeading)
 
-	w.SetContent(widget.NewLabel("Hello World!"))
-	// w.ShowAndRun()
-}
-
-func hasUser(m map[string]string) bool {
-	_, name := m["username"]
-	_, pass := m["password"]
-
-	return (name && pass)
+	w.SetContent(tabs)
+	w.Resize(fyne.NewSize(500, 600))
+	w.ShowAndRun()
 }

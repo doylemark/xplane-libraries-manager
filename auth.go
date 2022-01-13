@@ -16,6 +16,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -33,11 +34,11 @@ const (
 	usernameInputId = "auth"
 	passwordInputId = "password"
 	signInBtnId     = "elSignIn_submit"
-	credsFile       = "creds.txt"
+	cookiesFile     = "cookies.txt"
 	userFile        = "user.txt"
 )
 
-func Login(username, password string) ([]*http.Cookie, error) {
+func login(username, password string) ([]*http.Cookie, error) {
 	var loginCookies []*http.Cookie
 
 	opts := append(dp.DefaultExecAllocatorOptions[:],
@@ -52,7 +53,7 @@ func Login(username, password string) ([]*http.Cookie, error) {
 
 	ctx, cancel := dp.NewContext(allocCtx)
 	defer cancel()
-
+	fmt.Println(username, password)
 	dp.Run(ctx,
 		dp.Navigate(loginUrl),
 		dp.WaitReady("body"),
@@ -63,14 +64,16 @@ func Login(username, password string) ([]*http.Cookie, error) {
 
 		dp.WaitReady("body"),
 		dp.ActionFunc(func(ctx context.Context) error {
+
 			cookies, err := network.GetAllCookies().Do(ctx)
 
 			if err != nil {
 				fmt.Println(err)
-				return err
+				return nil
 			}
 
 			for _, cookie := range cookies {
+				fmt.Println(cookie.Name)
 				loginCookies = append(loginCookies, &http.Cookie{
 					Name:  cookie.Name,
 					Value: cookie.Value,
@@ -85,10 +88,11 @@ func Login(username, password string) ([]*http.Cookie, error) {
 		return loginCookies, errors.New("login failed, not enough cookies")
 	}
 
+	storeCookies(loginCookies)
 	return loginCookies, nil
 }
 
-func MakeAuthorizedGet(cookies []*http.Cookie, url string) (*http.Response, error) {
+func makeAuthorizedGet(cookies []*http.Cookie, url string) (*http.Response, error) {
 	var client http.Client
 	req, err := http.NewRequest("GET", url, nil)
 
@@ -109,7 +113,7 @@ func MakeAuthorizedGet(cookies []*http.Cookie, url string) (*http.Response, erro
 	return resp, nil
 }
 
-func StoreUser(username, password string) error {
+func storeUser(username, password string) error {
 	f, err := os.OpenFile(userFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
 	if err != nil {
@@ -127,8 +131,8 @@ func StoreUser(username, password string) error {
 	return nil
 }
 
-func ReadUser(path string) (*string, *string) {
-	b, err := os.ReadFile(path)
+func readUser() (*string, *string) {
+	b, err := os.ReadFile(userFile)
 
 	if err != nil {
 		return nil, nil
@@ -137,4 +141,40 @@ func ReadUser(path string) (*string, *string) {
 	parts := strings.Split(string(b), " ")
 
 	return &parts[0], &parts[1]
+}
+
+func storeCookies(cookies []*http.Cookie) error {
+	f, err := os.OpenFile(cookiesFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	if err != nil {
+		return err
+	}
+
+	for _, cookie := range cookies {
+		_, err = f.WriteString(cookie.Name + " " + cookie.Value + "\n")
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func readCookies() []*http.Cookie {
+	var cookies []*http.Cookie
+
+	f, err := os.Open("cookies.txt")
+
+	if err != nil {
+		return cookies
+	}
+
+	scanner := bufio.NewScanner(f)
+
+	for scanner.Scan() {
+		parts := strings.Split(scanner.Text(), " ")
+		cookies = append(cookies, &http.Cookie{Name: parts[0], Value: parts[1]})
+	}
+
+	return cookies
 }

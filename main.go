@@ -16,6 +16,8 @@
 package main
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -37,14 +39,12 @@ func main() {
 		promptSimPath(a, w)
 	}
 
-	cookies := readCookies()
+	cookies := refreshAuth()
 
-	// username, password := ReadUser()
-	// cookies, err := Login(*username, *password)
-
-	// if err != nil {
-	// 	fmt.Println(err, *username, *password)
-	// }
+	if cookies == nil {
+		// prompt login
+		fmt.Println("you don't got no smoke")
+	}
 
 	fetcher := newLibraryFetcher()
 	go fetcher.getMasterLibraries(cookies)

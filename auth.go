@@ -16,12 +16,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/chromedp/cdproto/network"
@@ -34,11 +33,39 @@ const (
 	usernameInputId = "auth"
 	passwordInputId = "password"
 	signInBtnId     = "elSignIn_submit"
-	cookiesFile     = "cookies.txt"
-	userFile        = "user.txt"
 )
 
-func login(username, password string) ([]*http.Cookie, error) {
+type User struct {
+	name     string
+	password string
+}
+
+func refreshAuth() []*http.Cookie {
+	cookies := readCookies()
+
+	cookiesValid := checkCookies(cookies)
+
+	if cookiesValid {
+		return cookies
+	}
+
+	user, err := readUser()
+
+	if err != nil {
+		return nil
+	}
+
+	newCookies, err := refreshCookies(user)
+	cookiesValid = checkCookies(newCookies)
+
+	if !cookiesValid || err != nil {
+		return newCookies
+	}
+
+	return nil
+}
+
+func refreshCookies(user User) ([]*http.Cookie, error) {
 	var loginCookies []*http.Cookie
 
 	opts := append(dp.DefaultExecAllocatorOptions[:],
@@ -53,13 +80,13 @@ func login(username, password string) ([]*http.Cookie, error) {
 
 	ctx, cancel := dp.NewContext(allocCtx)
 	defer cancel()
-	fmt.Println(username, password)
+
 	dp.Run(ctx,
 		dp.Navigate(loginUrl),
 		dp.WaitReady("body"),
 
-		dp.SetValue(usernameInputId, username, dp.ByID),
-		dp.SetValue(passwordInputId, password, dp.ByID),
+		dp.SetValue(usernameInputId, user.name, dp.ByID),
+		dp.SetValue(passwordInputId, user.password, dp.ByID),
 		dp.Click(signInBtnId, dp.ByID),
 
 		dp.WaitReady("body"),
@@ -113,68 +140,23 @@ func makeAuthorizedGet(cookies []*http.Cookie, url string) (*http.Response, erro
 	return resp, nil
 }
 
-func storeUser(username, password string) error {
-	f, err := os.OpenFile(userFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func checkCookies(cookies []*http.Cookie) bool {
+	resp, err := makeAuthorizedGet(cookies, "https://forums.x-plane.org/")
 
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return false
 	}
 
-	out := username + " " + password
-
-	_, err = f.WriteString(out)
+	d, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return false
 	}
 
-	return nil
-}
+	str := string(d)
 
-func readUser() (*string, *string) {
-	b, err := os.ReadFile(userFile)
+	return !strings.Contains(str, "Existing user? Sign In")
 
-	if err != nil {
-		return nil, nil
-	}
-
-	parts := strings.Split(string(b), " ")
-
-	return &parts[0], &parts[1]
-}
-
-func storeCookies(cookies []*http.Cookie) error {
-	f, err := os.OpenFile(cookiesFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-	if err != nil {
-		return err
-	}
-
-	for _, cookie := range cookies {
-		_, err = f.WriteString(cookie.Name + " " + cookie.Value + "\n")
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func readCookies() []*http.Cookie {
-	var cookies []*http.Cookie
-
-	f, err := os.Open("cookies.txt")
-
-	if err != nil {
-		return cookies
-	}
-
-	scanner := bufio.NewScanner(f)
-
-	for scanner.Scan() {
-		parts := strings.Split(scanner.Text(), " ")
-		cookies = append(cookies, &http.Cookie{Name: parts[0], Value: parts[1]})
-	}
-
-	return cookies
 }

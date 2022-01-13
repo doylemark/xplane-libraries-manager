@@ -34,46 +34,46 @@ func main() {
 	w := a.NewWindow(title)
 
 	if a.Preferences().String("SimPath") == "" {
-		info := dialog.NewInformation("X-Plane path", "Please select your X-Plane 11 path when prompted", w)
-		info.SetOnClosed(func() {
-			dialog.ShowFolderOpen(func(lu fyne.ListableURI, e error) {
-				if lu == nil {
-					closeInfo := dialog.NewInformation("Missing X-Plane Path", "No Path was provided, closing", w)
-					closeInfo.SetOnClosed(func() {
-						w.Close()
-					})
-					closeInfo.Show()
-					return
-				}
-
-				a.Preferences().SetString("SimPath", lu.Path())
-				dialog.ShowInformation("X-Plane Path Set", "X-Plane Path set to \""+lu.Path()+"\".\n You can modify your path in settings", w)
-			}, w)
-		})
-		info.Show()
+		promptSimPath(a, w)
 	}
 
-	username, password := ReadUser("user.txt")
+	cookies := readCookies()
 
-	if username == nil || password == nil {
-		// get user to login again
-	}
-
-	// creds, err := Login(*username, *password)
+	// username, password := ReadUser()
+	// cookies, err := Login(*username, *password)
 
 	// if err != nil {
-	// 	// get user to login again
-	// 	panic("Login Failed")
+	// 	fmt.Println(err, *username, *password)
 	// }
 
-	// fetcher := newLibraryFetcher()
-	// fmt.Println(creds)
-	// go fetcher.GetMasterLibraries(creds)
+	fetcher := newLibraryFetcher()
+	go fetcher.getMasterLibraries(cookies)
 
-	tabs := CreateTabs(w)
+	tabs := createTabs(w, fetcher.progress)
+
 	tabs.SetTabLocation(container.TabLocationLeading)
 
 	w.SetContent(tabs)
 	w.Resize(fyne.NewSize(500, 600))
 	w.ShowAndRun()
+}
+
+func promptSimPath(a fyne.App, w fyne.Window) {
+	info := dialog.NewInformation("X-Plane path", "Please select your X-Plane 11 path when prompted", w)
+	info.SetOnClosed(func() {
+		dialog.ShowFolderOpen(func(lu fyne.ListableURI, e error) {
+			if lu == nil {
+				closeInfo := dialog.NewInformation("Missing X-Plane Path", "No Path was provided, closing", w)
+				closeInfo.SetOnClosed(func() {
+					w.Close()
+				})
+				closeInfo.Show()
+				return
+			}
+
+			a.Preferences().SetString("SimPath", lu.Path())
+			dialog.ShowInformation("X-Plane Path Set", "X-Plane Path set to \""+lu.Path()+"\".\n You can modify your path in settings", w)
+		}, w)
+	})
+	info.Show()
 }

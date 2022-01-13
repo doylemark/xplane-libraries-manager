@@ -17,27 +17,55 @@ package main
 
 import (
 	"fmt"
+	"image/color"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
-func Home(w fyne.Window) fyne.CanvasObject {
-	heading := widget.NewLabelWithStyle("Home", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+func home(w fyne.Window, c chan Library) fyne.CanvasObject {
+	var libs []Library
+
+	heading := widget.NewLabelWithStyle("Home"+fmt.Sprint(len(libs)), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	bar := widget.NewSeparator()
 
-	return container.NewVBox(heading, bar)
+	list := widget.NewList(
+		func() int {
+			return len(libs)
+		},
+		func() fyne.CanvasObject {
+			return container.NewHBox(
+				widget.NewIcon(theme.DocumentIcon()),
+				widget.NewLabel("Template Object"),
+				layout.NewSpacer(),
+				canvas.NewText("(installed)", color.RGBA{79, 220, 124, 1}),
+			)
+		},
+		func(id widget.ListItemID, item fyne.CanvasObject) {
+			item.(*fyne.Container).Objects[1].(*widget.Label).SetText(libs[id].Name)
+		},
+	)
+	go func() {
+		for lib := range c {
+			fmt.Println(lib.Name)
+			libs = append(libs, lib)
+			list.Refresh()
+			heading.SetText("Home (" + fmt.Sprint(len(libs)) + " libraries found)")
+		}
+	}()
+
+	return container.NewBorder(container.NewVBox(heading, bar), nil, nil, nil, list)
 }
 
-func Settings(w fyne.Window) fyne.CanvasObject {
+func settings(w fyne.Window) fyne.CanvasObject {
 	simPathBinding := binding.NewString()
 	simPathBinding.Set(fyne.CurrentApp().Preferences().String("SimPath"))
-	trackVersionsBinding := binding.NewBool()
-	trackVersionsBinding.Set(fyne.CurrentApp().Preferences().Bool("TrackVersions"))
 
 	heading := widget.NewLabelWithStyle("Settings", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	bar := widget.NewSeparator()
@@ -53,26 +81,14 @@ func Settings(w fyne.Window) fyne.CanvasObject {
 		}, w)
 	})
 
-	trackBar := widget.NewSeparator()
-	trackVersions := widget.NewLabel("Library Versioning")
-	trackVersionsBox := widget.NewCheck("Track Library Versions", nil)
-	trackVersionsBox.OnChanged = func(b bool) {
-		fyne.CurrentApp().Preferences().SetBool("TrackVersions", b)
-		fmt.Println(b)
-		fmt.Println(trackVersionsBinding.Get())
-		trackVersionsBinding.Set(b)
-	}
-	trackVersionsBox.Bind(trackVersionsBinding)
-	trackVersionsBox.Show()
-
-	return container.NewVBox(heading, bar, pathLabel, pathEntry, pathBtn, trackBar, trackVersions, trackVersionsBox)
+	return container.NewVBox(heading, bar, pathLabel, pathEntry, pathBtn)
 }
 
-func CreateTabs(w fyne.Window) *container.AppTabs {
-	home := container.NewTabItem("Home", Home(w))
+func createTabs(w fyne.Window, c chan Library) *container.AppTabs {
+	home := container.NewTabItem("Home", home(w, c))
 	home.Icon = theme.FolderIcon()
 
-	settings := container.NewTabItem("Settings", Settings(w))
+	settings := container.NewTabItem("Settings", settings(w))
 	settings.Icon = theme.SettingsIcon()
 
 	tabs := container.NewAppTabs(home, settings)

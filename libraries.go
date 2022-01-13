@@ -45,11 +45,12 @@ func newLibraryFetcher() *LibraryFetcher {
 	}
 }
 
-func (fetcher *LibraryFetcher) GetMasterLibraries(creds []*http.Cookie) ([]Library, error) {
+func (fetcher *LibraryFetcher) getMasterLibraries(creds []*http.Cookie) error {
 	resp, err := http.Get(masterListUrl)
 
 	if err != nil {
-		return nil, err
+		fmt.Println(err)
+		return err
 	}
 
 	defer resp.Body.Close()
@@ -57,7 +58,7 @@ func (fetcher *LibraryFetcher) GetMasterLibraries(creds []*http.Cookie) ([]Libra
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	frames := doc.Find("iframe")
@@ -68,24 +69,25 @@ func (fetcher *LibraryFetcher) GetMasterLibraries(creds []*http.Cookie) ([]Libra
 		src, exists := s.Attr("data-embed-src")
 
 		if exists {
-			lib := GetLibraryInfo(src, creds)
+			go func() {
+				lib := getLibraryInfo(src, creds)
 
-			if lib != nil {
-				fetcher.progress <- *lib
-				libs = append(libs, *lib)
-			}
+				if lib != nil {
+					fetcher.progress <- *lib
+					libs = append(libs, *lib)
+				}
+			}()
 		}
 	})
 
-	close(fetcher.progress)
-
-	return libs, nil
+	return nil
 }
 
-func GetLibraryInfo(url string, creds []*http.Cookie) *Library {
-	resp, err := MakeAuthorizedGet(creds, url)
+func getLibraryInfo(url string, creds []*http.Cookie) *Library {
+	resp, err := makeAuthorizedGet(creds, url)
 
 	if err != nil {
+		fmt.Println(err)
 		return nil
 	}
 

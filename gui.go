@@ -29,11 +29,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-func home(w fyne.Window, c chan Library) fyne.CanvasObject {
-	var libs []Library
-
-	heading := widget.NewLabelWithStyle("Home"+fmt.Sprint(len(libs)), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+func home(w fyne.Window) fyne.CanvasObject {
+	heading := widget.NewLabelWithStyle("Home"+fmt.Sprint(0), fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	bar := widget.NewSeparator()
+
+	libs := getAllLibraries()
 
 	list := widget.NewList(
 		func() int {
@@ -48,17 +48,17 @@ func home(w fyne.Window, c chan Library) fyne.CanvasObject {
 			)
 		},
 		func(id widget.ListItemID, item fyne.CanvasObject) {
-			item.(*fyne.Container).Objects[1].(*widget.Label).SetText(libs[id].Name)
+			item.(*fyne.Container).Objects[1].(*widget.Label).SetText(libs[id].name)
+			if libs[id].isInstalled {
+				item.(*fyne.Container).Objects[3].(*canvas.Text).Text = "(installed)"
+				item.(*fyne.Container).Objects[3].(*canvas.Text).Color = color.RGBA{79, 220, 124, 1}
+
+			} else {
+				item.(*fyne.Container).Objects[3].(*canvas.Text).Text = "(not installed)"
+				item.(*fyne.Container).Objects[3].(*canvas.Text).Color = color.RGBA{237, 66, 69, 1}
+			}
 		},
 	)
-	go func() {
-		for lib := range c {
-			fmt.Println(lib.Name)
-			libs = append(libs, lib)
-			list.Refresh()
-			heading.SetText("Home (" + fmt.Sprint(len(libs)) + " libraries found)")
-		}
-	}()
 
 	return container.NewBorder(container.NewVBox(heading, bar), nil, nil, nil, list)
 }
@@ -84,8 +84,8 @@ func settings(w fyne.Window) fyne.CanvasObject {
 	return container.NewVBox(heading, bar, pathLabel, pathEntry, pathBtn)
 }
 
-func createTabs(w fyne.Window, c chan Library) *container.AppTabs {
-	home := container.NewTabItem("Home", home(w, c))
+func createTabs(w fyne.Window) *container.AppTabs {
+	home := container.NewTabItem("Home", home(w))
 	home.Icon = theme.FolderIcon()
 
 	settings := container.NewTabItem("Settings", settings(w))

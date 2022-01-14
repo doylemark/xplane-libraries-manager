@@ -46,10 +46,7 @@ func main() {
 		fmt.Println("you don't got no smoke")
 	}
 
-	fetcher := newLibraryFetcher()
-	go fetcher.getMasterLibraries(cookies)
-
-	tabs := createTabs(w, fetcher.progress)
+	tabs := createTabs(w)
 
 	tabs.SetTabLocation(container.TabLocationLeading)
 

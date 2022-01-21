@@ -80,6 +80,7 @@ func home(w fyne.Window) fyne.CanvasObject {
 					libs[libIndex].isSelectedForInstall = true
 					selectedForInstall.Append(chk.Text)
 				} else {
+					libs[libIndex].isSelectedForInstall = false
 					var newSelected []string
 					s, err := selectedForInstall.Get()
 
@@ -137,15 +138,15 @@ func home(w fyne.Window) fyne.CanvasObject {
 		},
 	)
 
-	// list.OnSelected = func(id widget.ListItemID) {
-	// 	p := fyne.CurrentApp().Preferences().String("SimPath") + "/" + items[id].name
-	// 	pLabel := widget.NewLabelWithStyle(p, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+	list.OnSelected = func(id widget.ListItemID) {
+		p := fyne.CurrentApp().Preferences().String("SimPath") + "/" + libs[id].name
+		pLabel := widget.NewLabelWithStyle(p, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
 
-	// 	dialogContent := container.NewVBox(pLabel)
+		dialogContent := container.NewVBox(pLabel)
 
-	// 	dialog.ShowCustom(items[id].name, "close", dialogContent, w)
-	// 	list.UnselectAll()
-	// }
+		dialog.ShowCustom(libs[id].name, "close", dialogContent, w)
+		list.UnselectAll()
+	}
 
 	return container.NewBorder(container.NewVBox(installList, bar), nil, nil, nil, list)
 }

@@ -27,6 +27,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/skratchdot/open-golang/open"
 )
 
 var (
@@ -35,15 +36,18 @@ var (
 )
 
 func home(w fyne.Window) fyne.CanvasObject {
-	selectedForInstall := binding.NewStringList()
-
 	bar := widget.NewSeparator()
 	installList := widget.NewLabel("")
+	openSceneryBtn := widget.NewButton("Open Scenery Folder", func() {
+		open.Start(fyne.CurrentApp().Preferences().String("SimPath"))
+	})
+	topRow := container.NewHBox(installList, layout.NewSpacer(), openSceneryBtn)
 
 	scanner := newScanner()
 	scanner.scan()
 
 	var libs []Library
+	selectedForInstall := binding.NewStringList()
 
 	for name, url := range libraries {
 		_, installed := scanner.installedLibraries[name]
@@ -58,6 +62,52 @@ func home(w fyne.Window) fyne.CanvasObject {
 		libs = append(libs, lib)
 	}
 
+	toggleForInstall := func(libName string, b bool) {
+		var lib Library
+		var libIndex int
+
+		for i, l := range libs {
+			if l.name == libName {
+				lib = l
+				libIndex = i
+			}
+		}
+
+		if b && !lib.isInstalled {
+			libs[libIndex].isSelectedForInstall = true
+			selectedForInstall.Append(libName)
+		} else {
+			libs[libIndex].isSelectedForInstall = false
+			var newSelected []string
+			s, err := selectedForInstall.Get()
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			for _, item := range s {
+				if item != libName {
+					newSelected = append(newSelected, item)
+				}
+			}
+
+			selectedForInstall.Set(newSelected)
+			installList.SetText(fmt.Sprint(selectedForInstall.Length()) + " Libraries Selected")
+		}
+	}
+
+	selectAll := widget.NewCheck("Select All", func(b bool) {
+		for lib := range libraries {
+			if b {
+				toggleForInstall(lib, true)
+			} else {
+				toggleForInstall(lib, false)
+			}
+		}
+	})
+	installRow := container.NewHBox(selectAll, layout.NewSpacer())
+
 	list := widget.NewList(
 		func() int {
 			return len(libs)
@@ -66,39 +116,7 @@ func home(w fyne.Window) fyne.CanvasObject {
 			chk := widget.NewCheck("template str", func(b bool) {})
 
 			chk.OnChanged = func(b bool) {
-				var lib Library
-				var libIndex int
-
-				for i, l := range libs {
-					if l.name == chk.Text {
-						lib = l
-						libIndex = i
-					}
-				}
-
-				if b && !lib.isInstalled {
-					libs[libIndex].isSelectedForInstall = true
-					selectedForInstall.Append(chk.Text)
-				} else {
-					libs[libIndex].isSelectedForInstall = false
-					var newSelected []string
-					s, err := selectedForInstall.Get()
-
-					if err != nil {
-						fmt.Println(err)
-						return
-					}
-
-					for _, item := range s {
-						if item != chk.Text {
-							newSelected = append(newSelected, item)
-						}
-					}
-
-					selectedForInstall.Set(newSelected)
-				}
-
-				installList.SetText(fmt.Sprint(selectedForInstall.Length()))
+				toggleForInstall(chk.Text, b)
 			}
 
 			hb := container.NewHBox(
@@ -131,8 +149,6 @@ func home(w fyne.Window) fyne.CanvasObject {
 				cont.Objects[0].(*widget.Check).SetChecked(true)
 			}
 
-			// fmt.Println("updated", items[id].name)
-
 			cont.Objects[0].(*widget.Check).Refresh()
 			cont.Objects[2].(*canvas.Text).Refresh()
 		},
@@ -148,7 +164,7 @@ func home(w fyne.Window) fyne.CanvasObject {
 		list.UnselectAll()
 	}
 
-	return container.NewBorder(container.NewVBox(installList, bar), nil, nil, nil, list)
+	return container.NewBorder(container.NewVBox(topRow, installRow, bar), nil, nil, nil, list)
 }
 
 func settings(w fyne.Window) fyne.CanvasObject {
